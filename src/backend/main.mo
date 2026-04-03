@@ -110,6 +110,10 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view balance");
     };
+    // Admin has unlimited balance
+    if (AccessControl.isAdmin(accessControlState, caller)) {
+      return 999999999;
+    };
     let user = getUserInternal(caller);
     user.balance;
   };
@@ -159,8 +163,10 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can send points");
     };
+    let isAdmin = AccessControl.isAdmin(accessControlState, caller);
     let senderUser = getUserInternal(caller);
-    if (senderUser.balance < amount) {
+    // Admin has unlimited points, skip balance check
+    if (not isAdmin and senderUser.balance < amount) {
       Runtime.trap("Insufficient balance");
     };
     let recipientUser = switch (users.get(recipient)) {
@@ -173,9 +179,11 @@ actor {
       amount;
       timestamp = Time.now();
     };
+    // Admin balance doesn't decrease
+    let newSenderBalance = if (isAdmin) { senderUser.balance } else { senderUser.balance - amount };
     let updatedSender = {
       senderUser with
-      balance = senderUser.balance - amount;
+      balance = newSenderBalance;
       transactions = senderUser.transactions.concat([transaction]);
     };
     let updatedRecipient = {
